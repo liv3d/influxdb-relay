@@ -31,8 +31,13 @@ output = [
     # name: name of the backend, used for display purposes only.
     # location: full URL of the /write endpoint of the backend
     # timeout: Go-parseable time duration. Fail writes if incomplete in this time.
+    # http-auth-mode: "pass" (default) or "force"
+    # http-auth-user: attempt to authenticate with this user if http-auth-mode is "force"
+    # http-auth-pass: attempt to authenticate with this password if http-auth-mode is "force"
     { name="local1", location="http://127.0.0.1:8086/write", timeout="10s" },
     { name="local2", location="http://127.0.0.1:7086/write", timeout="10s" },
+    { name="local3", location="http://127.0.0.1:6086/write", timeout="10s",
+      http-auth-mode="force", http-auth-user="foo", http-auth-pass="bar" },
 ]
 
 [[udp]]
@@ -139,4 +144,12 @@ Retries are serialized to a single backend.
 Meaning that buffered requests are attempted one at a time.
 If buffered requests succeed then there is no delay between subsequent attempts.
 
+## HTTP Authentication
+
+Relay has two 'modes' for dealing with authentication:
+
+* http-mode="pass" (default) client's authentication header will be passed on to backend.
+* http-mode="force" will ignore client's authorization header and will use http-auth-user and http-auth-pass values instead.
+
+Force mode only works if http-auth-user and http-auth-pass are defined, otherwise it falls back to pass mode.
 

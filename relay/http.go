@@ -3,6 +3,7 @@ package relay
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -32,6 +33,7 @@ const (
 	DefaultMaxDelayInterval = 10 * time.Second
 	DefaultInitialInterval  = 500 * time.Millisecond
 	DefaultMultiplier       = 2
+	DefaultHTTPAuthMode     = "pass"
 )
 
 func NewHTTP(cfg HTTPConfig) (Relay, error) {
@@ -68,10 +70,27 @@ func NewHTTP(cfg HTTPConfig) (Relay, error) {
 			}
 			rb = newRetryBuffer(b.BufferSize, DefaultInitialInterval, DefaultMultiplier, max)
 		}
+
+		// Deal with HTTP authentication
+		var authtoken string
+		httpauthmode := DefaultHTTPAuthMode
+
+		if b.HTTPAuthMode != "" {
+			httpauthmode = b.HTTPAuthMode
+		}
+
+		if httpauthmode == "force" {
+			if b.HTTPUsername != "" && b.HTTPPassword != "" {
+				authtoken = "Basic " + base64.StdEncoding.EncodeToString([]byte(b.HTTPUsername+":"+b.HTTPPassword))
+			}
+		}
+
 		h.backends = append(h.backends, &httpBackend{
-			name:        b.Name,
-			location:    b.Location,
-			retryBuffer: rb,
+			name:          b.Name,
+			location:      b.Location,
+			retryBuffer:   rb,
+			httpauthmode:  httpauthmode,
+			authorization: authtoken,
 			client: &http.Client{
 				Timeout: timeout,
 			},
@@ -188,6 +207,9 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	for _, b := range h.backends {
 		b := b
+		if b.httpauthmode == "pass" {
+			b.authorization = r.Header.Get("Authorization")
+		}
 		go func() {
 			defer wg.Done()
 			resp, err := b.post(outBytes, r.URL.RawQuery)
@@ -283,11 +305,13 @@ func jsonError(w http.ResponseWriter, code int, message string) {
 }
 
 type httpBackend struct {
-	name        string
-	location    string
-	retryBuffer *retryBuffer
-	client      *http.Client
-	buffering   int32
+	name          string
+	location      string
+	retryBuffer   *retryBuffer
+	client        *http.Client
+	buffering     int32
+	httpauthmode  string
+	authorization string
 }
 
 func (b *httpBackend) post(buf []byte, query string) (response *http.Response, err error) {
@@ -299,6 +323,10 @@ func (b *httpBackend) post(buf []byte, query string) (response *http.Response, e
 	req.URL.RawQuery = query
 	req.Header.Set("Content-Type", "text/plain")
 	req.Header.Set("Content-Length", fmt.Sprint(len(buf)))
+
+	if b.authorization != "" {
+		req.Header.Set("Authorization", b.authorization)
+	}
 
 	// Check if we are in buffering mode
 	if atomic.LoadInt32(&b.buffering) == 0 {
