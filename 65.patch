@@ -1,0 +1,31 @@
+From db50e2caf9bbe0c73c1af2a2252236a1da24946e Mon Sep 17 00:00:00 2001
+From: Steven Burgart <skburgart@gmail.com>
+Date: Sat, 28 Apr 2018 16:33:22 -0400
+Subject: [PATCH] Fix fd leak
+
+---
+ relay/http.go | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/relay/http.go b/relay/http.go
+index 73d4f23..ee10ec8 100644
+--- a/relay/http.go
++++ b/relay/http.go
+@@ -329,16 +329,13 @@ func (b *simplePoster) post(buf []byte, query string, auth string) (*responseDat
+ 	if err != nil {
+ 		return nil, err
+ 	}
++	defer resp.Body.Close()
+ 
+ 	data, err := ioutil.ReadAll(resp.Body)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 
+-	if err = resp.Body.Close(); err != nil {
+-		return nil, err
+-	}
+-
+ 	return &responseData{
+ 		ContentType:     resp.Header.Get("Conent-Type"),
+ 		ContentEncoding: resp.Header.Get("Conent-Encoding"),

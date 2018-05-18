@@ -1,0 +1,22 @@
+From 4f54b6549204f96ad311c12e7d137dc8de53f39d Mon Sep 17 00:00:00 2001
+From: Shane Xu <xusheng0711@gmail.com>
+Date: Sun, 14 Aug 2016 15:10:36 +0800
+Subject: [PATCH] fix panic: runtime error: invalid memory address or nil
+ pointer dereference
+
+---
+ relay/retry.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/relay/retry.go b/relay/retry.go
+index dc262c2..0962523 100644
+--- a/relay/retry.go
++++ b/relay/retry.go
+@@ -195,6 +195,6 @@ func (l *bufferList) add(buf []byte, query string, auth string) (*batch, error)
+ 		b.bufs = append(b.bufs, buf)
+ 	}
+ 
+-	l.cond.L.Unlock()
++	defer l.cond.L.Unlock()
+ 	return *cur, nil
+ }
